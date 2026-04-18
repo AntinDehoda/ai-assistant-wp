@@ -75,3 +75,9 @@ Finalize Cloud Run config with GCS FUSE mounting.
 Setup Secret Manager integration for Symfony secrets.
 
 Commit: "Stage 6: Production-ready GCP configuration".
+
+**✓ Completed:**
+- Formulated Cloud Run deployment script `deploy.sh` integrating Gen2 execution specs.
+- Mapped infrastructure FUSE volumes (`--add-volume-mount`) locking into `/knowledge` organically.
+- Routed Google Secret Manager references natively.
+- Written detailed `README_GCP.md` containing prerequisite IAM policies and architectural instructions.
