@@ -12,17 +12,17 @@ use Symfony\Component\Routing\Attribute\Route;
 class WebhookController extends AbstractController
 {
     #[Route('/webhook', name: 'telegram_webhook', methods: ['POST'])]
-    public function index(Request $request, TelegramService $telegramService): JsonResponse
+    public function index(Request $request, TelegramService $telegramService, \App\Service\GeminiEngine $geminiEngine): JsonResponse
     {
         $data = $request->toArray();
         $update = new TelegramUpdate($data);
         
         if ($update->chatId && $update->text) {
-            // Stage 4 focuses purely on infrastructure. We are just echoing to prove the webhook works.
-            // In Stage 5, this simple echo will be replaced by GeminiEngine call.
+            // Process the message through the Knowledge Custodian AI
+            $aiResponse = $geminiEngine->process($update->text);
             
-            // To prevent MarkdownV2 reserved characters in user text from crashing the echo, we escape it
-            $safeText = $telegramService->escapeMarkdownV2("System acknowledged receipt of: " . $update->text);
+            // To prevent MarkdownV2 reserved characters from crashing the API
+            $safeText = $telegramService->escapeMarkdownV2($aiResponse);
             
             $telegramService->sendMessage($update->chatId, $safeText);
         }
