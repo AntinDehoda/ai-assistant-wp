@@ -19,6 +19,13 @@ WORKDIR /app
 # Copy application source code
 COPY . /app
 
+# Install dependencies
+ENV COMPOSER_ALLOW_SUPERUSER=1
+RUN composer install --no-dev --no-interaction --optimize-autoloader
+
+# Set permissions for Symfony cache/logs
+RUN mkdir -p var/cache var/log && chown -R www-data:www-data var/
+
 # Copy entrypoint
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
