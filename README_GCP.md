@@ -63,3 +63,26 @@ Run the automated deploy script:
 1. Leverages `--source .` to hand over our local repository directly to Google Cloud Build. Cloud Build will execute our `Dockerfile`, layering PHP 8.2 FPM, Supervisord, Composer structure and Nginx tightly.
 2. Specifies `--execution-environment gen2` and natively binds the GCS bucket directly onto `/knowledge` mapping our `WikiManager` into the unified storage FUSE.
 3. Maps our Secret Manager credentials natively to Docker environment variables passing into our Symfony Autowiring dynamically.
+
+## 4. Teardown / Stopping Services
+
+To stop incurring charges or fully remove the deployment, you can delete the resources separately:
+
+### A. Delete the Cloud Run Service
+This stops the application from running and removes the endpoint.
+```bash
+gcloud run services delete ai-crm-architect --region us-central1
+```
+
+### B. Delete the FUSE Knowledge Bucket
+**Warning:** This will permanently delete all your AI's learned wiki knowledge!
+```bash
+gsutil rm -r gs://ai-crm-knowledge-bucket
+```
+
+### C. Delete the Secrets
+Removes the API keys from Secret Manager.
+```bash
+gcloud secrets delete TELEGRAM_TOKEN
+gcloud secrets delete GEMINI_API_KEY
+```

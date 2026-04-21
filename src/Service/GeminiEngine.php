@@ -44,7 +44,7 @@ class GeminiEngine
             ]
         ];
 
-        $response = $this->httpClient->request('POST', 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=' . $this->apiKey, [
+        $response = $this->httpClient->request('POST', 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=' . $this->apiKey, [
             'json' => $payload,
             'headers' => [
                 'Content-Type' => 'application/json'
