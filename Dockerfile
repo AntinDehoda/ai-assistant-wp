@@ -16,6 +16,9 @@ COPY docker/supervisord.conf /etc/supervisord.conf
 # Set working directory
 WORKDIR /app
 
+# Copy application source code
+COPY . /app
+
 # Copy entrypoint
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
