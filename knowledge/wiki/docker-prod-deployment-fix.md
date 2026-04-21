@@ -22,3 +22,9 @@ COPY . /app
 ```
 
 This ensures that Cloud Build securely packages our actual `src/Controller`, `src/Service`, and configurations into the container before deploying it to Cloud Run.
+
+### Additional Composer Error Fix
+When executing `composer install` inside the Docker build, the `cache:clear` script failed because Symfony's routing component required a `DEFAULT_URI` environment variable, which was missing. 
+
+**Solution:**
+We added `DEFAULT_URI=https://localhost/` to the `.env` file, which allows the cache warmup process to complete successfully during the Docker image build phase.
