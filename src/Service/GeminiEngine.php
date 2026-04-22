@@ -62,13 +62,23 @@ class GeminiEngine
             return "Error from Gemini API: " . $e->getMessage();
         }
 
-        $part = $candidate['content']['parts'][0] ?? null;
+        $textOutput = '';
+        $functionCall = null;
+        $functionName = '';
+        $args = [];
 
-        if (isset($part['functionCall'])) {
-            $functionCall = $part['functionCall'];
-            $functionName = $functionCall['name'];
-            $args = $functionCall['args'] ?? [];
+        foreach ($candidate['content']['parts'] as $part) {
+            if (isset($part['text'])) {
+                $textOutput .= $part['text'] . "\n";
+            }
+            if (isset($part['functionCall'])) {
+                $functionCall = $part['functionCall'];
+                $functionName = $functionCall['name'];
+                $args = $functionCall['args'] ?? [];
+            }
+        }
 
+        if ($functionCall) {
             $result = $this->executeFunction($functionName, $args);
 
             // Append assistant's function call part
@@ -88,11 +98,11 @@ class GeminiEngine
             ];
 
             // Recursive loop to process the tool result
-            return $this->chatLoop($messages);
+            return trim($textOutput . "\n" . $this->chatLoop($messages));
         }
 
-        if (isset($part['text'])) {
-            return $part['text'];
+        if ($textOutput !== '') {
+            return trim($textOutput);
         }
 
         return "Error: Unhandled response format.";
