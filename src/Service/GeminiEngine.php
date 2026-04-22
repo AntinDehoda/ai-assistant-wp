@@ -91,8 +91,16 @@ class GeminiEngine
         if ($functionCall) {
             $result = $this->executeFunction($functionName, $args);
 
+            // Fix empty args array becoming a list in JSON instead of an object
+            $modelContent = $candidate['content'];
+            foreach ($modelContent['parts'] as &$partRef) {
+                if (isset($partRef['functionCall']['args']) && empty($partRef['functionCall']['args'])) {
+                    $partRef['functionCall']['args'] = new \stdClass();
+                }
+            }
+
             // Append assistant's function call part
-            $messages[] = $candidate['content'];
+            $messages[] = $modelContent;
 
             // Append function response
             $functionResponseData = [
