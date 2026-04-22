@@ -51,11 +51,15 @@ class GeminiEngine
             ]
         ]);
 
-        $data = $response->toArray();
-        $candidate = $data['candidates'][0] ?? null;
+        try {
+            $data = $response->toArray();
+            $candidate = $data['candidates'][0] ?? null;
 
-        if (!$candidate) {
-            return "Error: No response from Gemini.";
+            if (!$candidate) {
+                return "Error: No response from Gemini.";
+            }
+        } catch (\Exception $e) {
+            return "Error from Gemini API: " . $e->getMessage();
         }
 
         $part = $candidate['content']['parts'][0] ?? null;
