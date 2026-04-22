@@ -59,13 +59,14 @@ class GeminiEngine
                 return "Error: No response from Gemini.";
             }
         } catch (\Exception $e) {
-            return "Error from Gemini API: " . $e->getMessage();
+            return "Error from Gemini API: " . $this->maskSensitiveData($e->getMessage());
         }
 
         $textOutput = '';
         $functionCall = null;
         $functionName = '';
         $args = [];
+        $callId = null;
 
         foreach ($candidate['content']['parts'] as $part) {
             if (isset($part['text'])) {
@@ -75,6 +76,7 @@ class GeminiEngine
                 $functionCall = $part['functionCall'];
                 $functionName = $functionCall['name'];
                 $args = $functionCall['args'] ?? [];
+                $callId = $functionCall['id'] ?? null;
             }
         }
 
@@ -85,14 +87,20 @@ class GeminiEngine
             $messages[] = $candidate['content'];
 
             // Append function response
+            $functionResponseData = [
+                'name' => $functionName,
+                'response' => ['result' => $result]
+            ];
+            
+            if ($callId !== null) {
+                $functionResponseData['id'] = $callId;
+            }
+
             $messages[] = [
-                'role' => 'function',
+                'role' => 'user',
                 'parts' => [
                     [
-                        'functionResponse' => [
-                            'name' => $functionName,
-                            'response' => ['result' => $result]
-                        ]
+                        'functionResponse' => $functionResponseData
                     ]
                 ]
             ];
@@ -133,8 +141,18 @@ class GeminiEngine
                     return "Unknown function name: $name";
             }
         } catch (\Exception $e) {
-            return "Function execution failed: " . $e->getMessage();
+            return "Function execution failed: " . $this->maskSensitiveData($e->getMessage());
         }
+    }
+
+    private function maskSensitiveData(string $text): string
+    {
+        if (!empty($this->apiKey)) {
+            // Replace the actual key with a masked version (e.g. AIza...[HIDDEN])
+            $masked = substr($this->apiKey, 0, 6) . '...[HIDDEN]';
+            $text = str_replace($this->apiKey, $masked, $text);
+        }
+        return $text;
     }
 
     private function getSystemInstruction(): string

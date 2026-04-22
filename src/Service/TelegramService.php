@@ -9,24 +9,38 @@ class TelegramService
 {
     private HttpClientInterface $httpClient;
     private string $apiUrl;
+    private string $token;
 
     public function __construct(
         HttpClientInterface $httpClient,
         #[Autowire(env: 'TELEGRAM_TOKEN')] string $token
     ) {
         $this->httpClient = $httpClient;
+        $this->token = $token;
         $this->apiUrl = sprintf('https://api.telegram.org/bot%s/', $token);
     }
 
     public function sendMessage(int $chatId, string $text): void
     {
-        $this->httpClient->request('POST', $this->apiUrl . 'sendMessage', [
-            'json' => [
-                'chat_id' => $chatId,
-                'text' => $text,
-                'parse_mode' => 'MarkdownV2',
-            ]
-        ]);
+        try {
+            $response = $this->httpClient->request('POST', $this->apiUrl . 'sendMessage', [
+                'json' => [
+                    'chat_id' => $chatId,
+                    'text' => $text,
+                    'parse_mode' => 'MarkdownV2',
+                ]
+            ]);
+            
+            // Force the request to complete to catch exceptions here instead of on destruct
+            $response->getStatusCode();
+        } catch (\Exception $e) {
+            $maskedMessage = $e->getMessage();
+            if (!empty($this->token)) {
+                $maskedToken = substr($this->token, 0, 9) . '...[HIDDEN]';
+                $maskedMessage = str_replace($this->token, $maskedToken, $maskedMessage);
+            }
+            error_log("Telegram API Error: " . $maskedMessage);
+        }
     }
     
     /**
