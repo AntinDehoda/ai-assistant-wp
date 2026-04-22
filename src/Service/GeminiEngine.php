@@ -59,7 +59,15 @@ class GeminiEngine
                 return "Error: No response from Gemini.";
             }
         } catch (\Exception $e) {
-            return "Error from Gemini API: " . $this->maskSensitiveData($e->getMessage());
+            $errorBody = '';
+            if (method_exists($e, 'getResponse')) {
+                try {
+                    $errorBody = " | Details: " . $e->getResponse()->getContent(false);
+                } catch (\Exception $e2) {
+                    // Ignore
+                }
+            }
+            return "Error from Gemini API: " . $this->maskSensitiveData($e->getMessage() . $errorBody);
         }
 
         $textOutput = '';
