@@ -26,11 +26,28 @@ class GeminiEngine
 
     public function process(string $userMessage, ?string $chatId = null): string
     {
-        $messages = [
-            ['role' => 'user', 'parts' => [['text' => $userMessage]]]
-        ];
+        $messages = [];
+        
+        if ($chatId !== null) {
+            $history = $this->sessionManager->getRecentHistory($chatId, 10);
+            foreach ($history as $msg) {
+                $messages[] = [
+                    'role' => $msg['role'],
+                    'parts' => [['text' => $msg['content']]]
+                ];
+            }
+        }
 
-        return $this->chatLoop($messages, $chatId);
+        $messages[] = ['role' => 'user', 'parts' => [['text' => $userMessage]]];
+
+        $finalResponse = $this->chatLoop($messages, $chatId);
+
+        if ($chatId !== null && strpos($finalResponse, 'Error:') !== 0) {
+            $this->sessionManager->saveMessage($chatId, 'user', $userMessage);
+            $this->sessionManager->saveMessage($chatId, 'model', $finalResponse);
+        }
+
+        return $finalResponse;
     }
 
     private function chatLoop(array &$messages, ?string $chatId = null): string
@@ -191,7 +208,13 @@ class GeminiEngine
 
     private function getSystemInstruction(?string $objective = null): string
     {
-        $instruction = <<<EOF
+        $instruction = "";
+        
+        if ($objective) {
+            $instruction .= "CURRENT_MISSION: " . $objective . "\n\n";
+        }
+        
+        $instruction .= <<<EOF
 Role: Senior WP-AI Architect & Knowledge Custodian.
 Core Mission: Maintain a persistent LLM-Wiki about WordPress CRM integrations while assisting the user.
 
@@ -205,10 +228,6 @@ Technical Guardrails:
 * Focus on PHP 8.2+, WordPress Hooks, and Secure AI integration.
 * Always check `log.md` for the history of previous architectural decisions.
 EOF;
-
-        if ($objective) {
-            $instruction .= "\n\nCurrent Mission:\n" . $objective;
-        }
 
         return $instruction;
     }

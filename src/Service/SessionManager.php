@@ -29,6 +29,17 @@ class SessionManager
             )
         ";
         $this->db->exec($query);
+
+        $historyQuery = "
+            CREATE TABLE IF NOT EXISTS chat_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                chat_id TEXT NOT NULL,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ";
+        $this->db->exec($historyQuery);
     }
 
     public function getObjective(string $chatId): ?string
@@ -65,5 +76,36 @@ class SessionManager
     {
         $stmt = $this->db->prepare("DELETE FROM user_sessions WHERE chat_id = :chat_id");
         $stmt->execute([':chat_id' => $chatId]);
+    }
+
+    public function saveMessage(string $chatId, string $role, string $content): void
+    {
+        $stmt = $this->db->prepare("
+            INSERT INTO chat_history (chat_id, role, content)
+            VALUES (:chat_id, :role, :content)
+        ");
+        $stmt->execute([
+            ':chat_id' => $chatId,
+            ':role' => $role,
+            ':content' => $content
+        ]);
+    }
+
+    public function getRecentHistory(string $chatId, int $limit = 10): array
+    {
+        $stmt = $this->db->prepare("
+            SELECT role, content 
+            FROM chat_history 
+            WHERE chat_id = :chat_id 
+            ORDER BY id DESC 
+            LIMIT :limit
+        ");
+        $stmt->bindValue(':chat_id', $chatId, PDO::PARAM_STR);
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        
+        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        return array_reverse($results);
     }
 }
