@@ -57,6 +57,7 @@ Perform a commit after every logical sub-step (e.g., "Add WikiManagerService for
 
 ## 4. General Rules for the Workflow
 
+0.  **Active Objective Focus:** Before responding, you MUST check the 'Active Objective'. Your primary goal is to fulfill this objective. Do not wander into secondary documentation tasks until the user's main intent is addressed. If the user's intent shifts, use the update_session_objective tool to remain aligned.
 1.  **One Step at a Time:** Perform ONLY one step from the plan.
 2.  **Review:** After writing code, explain the Symfony components used.
 3.  **Commit:** After each successful step, execute `git add .` and `git commit -m "[Step X] Description"`.

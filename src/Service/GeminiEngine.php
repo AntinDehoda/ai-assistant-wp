@@ -9,33 +9,41 @@ class GeminiEngine
 {
     private HttpClientInterface $httpClient;
     private WikiManager $wikiManager;
+    private SessionManager $sessionManager;
     private string $apiKey;
 
     public function __construct(
         HttpClientInterface $httpClient,
         WikiManager $wikiManager,
+        SessionManager $sessionManager,
         #[Autowire(env: 'GEMINI_API_KEY')] string $apiKey
     ) {
         $this->httpClient = $httpClient;
         $this->wikiManager = $wikiManager;
+        $this->sessionManager = $sessionManager;
         $this->apiKey = $apiKey;
     }
 
-    public function process(string $userMessage): string
+    public function process(string $userMessage, ?string $chatId = null): string
     {
         $messages = [
             ['role' => 'user', 'parts' => [['text' => $userMessage]]]
         ];
 
-        return $this->chatLoop($messages);
+        return $this->chatLoop($messages, $chatId);
     }
 
-    private function chatLoop(array &$messages): string
+    private function chatLoop(array &$messages, ?string $chatId = null): string
     {
+        $objective = null;
+        if ($chatId !== null) {
+            $objective = $this->sessionManager->getObjective($chatId);
+        }
+
         $payload = [
             'systemInstruction' => [
                 'parts' => [
-                    ['text' => $this->getSystemInstruction()]
+                    ['text' => $this->getSystemInstruction($objective)]
                 ]
             ],
             'contents' => $messages,
@@ -89,7 +97,7 @@ class GeminiEngine
         }
 
         if ($functionCall) {
-            $result = $this->executeFunction($functionName, $args);
+            $result = $this->executeFunction($functionName, $args, $chatId);
 
             // Fix empty args array becoming a list in JSON instead of an object
             $modelContent = $candidate['content'];
@@ -122,7 +130,7 @@ class GeminiEngine
             ];
 
             // Recursive loop to process the tool result
-            return trim($textOutput . "\n" . $this->chatLoop($messages));
+            return trim($textOutput . "\n" . $this->chatLoop($messages, $chatId));
         }
 
         if ($textOutput !== '') {
@@ -132,8 +140,9 @@ class GeminiEngine
         return "Error: Unhandled response format.";
     }
 
-    private function executeFunction(string $name, array $args): mixed
+    private function executeFunction(string $name, array|object $args, ?string $chatId = null): mixed
     {
+        $argsArray = (array) $args;
         try {
             switch ($name) {
                 case 'list_knowledge':
@@ -141,17 +150,26 @@ class GeminiEngine
                     return $this->wikiManager->listKnowledge();
 
                 case 'read_page':
-                    $this->wikiManager->appendLog("Agent executed tool: read_page => " . $args['filename']);
-                    return $this->wikiManager->readPage($args['filename']);
+                    $this->wikiManager->appendLog("Agent executed tool: read_page => " . $argsArray['filename']);
+                    return $this->wikiManager->readPage($argsArray['filename']);
 
                 case 'write_page':
-                    $this->wikiManager->appendLog("Agent executed tool: write_page => " . $args['filename']);
-                    $this->wikiManager->writePage($args['filename'], $args['content']);
+                    $this->wikiManager->appendLog("Agent executed tool: write_page => " . $argsArray['filename']);
+                    $this->wikiManager->writePage($argsArray['filename'], $argsArray['content']);
                     return "Page successfully written.";
 
                 case 'search_sources':
-                    $this->wikiManager->appendLog("Agent executed tool: search_sources => '" . $args['query'] . "'");
-                    return json_encode($this->wikiManager->searchSources($args['query']));
+                    $this->wikiManager->appendLog("Agent executed tool: search_sources => '" . $argsArray['query'] . "'");
+                    return json_encode($this->wikiManager->searchSources($argsArray['query']));
+                    
+                case 'update_session_objective':
+                    if ($chatId === null) {
+                        return "Error: Cannot update objective because chat_id is unknown.";
+                    }
+                    $newObjective = $argsArray['new_objective'] ?? '';
+                    $this->sessionManager->updateObjective($chatId, $newObjective);
+                    $this->wikiManager->appendLog("[$chatId] Objective set to: $newObjective");
+                    return "Session objective successfully updated.";
 
                 default:
                     return "Unknown function name: $name";
@@ -171,9 +189,9 @@ class GeminiEngine
         return $text;
     }
 
-    private function getSystemInstruction(): string
+    private function getSystemInstruction(?string $objective = null): string
     {
-        return <<<EOF
+        $instruction = <<<EOF
 Role: Senior WP-AI Architect & Knowledge Custodian.
 Core Mission: Maintain a persistent LLM-Wiki about WordPress CRM integrations while assisting the user.
 
@@ -187,6 +205,12 @@ Technical Guardrails:
 * Focus on PHP 8.2+, WordPress Hooks, and Secure AI integration.
 * Always check `log.md` for the history of previous architectural decisions.
 EOF;
+
+        if ($objective) {
+            $instruction .= "\n\nCurrent Mission:\n" . $objective;
+        }
+
+        return $instruction;
     }
 
     private function getFunctionDeclarations(): array
@@ -228,6 +252,17 @@ EOF;
                         'query' => ['type' => 'STRING']
                     ],
                     'required' => ['query']
+                ]
+            ],
+            [
+                'name' => 'update_session_objective',
+                'description' => 'Updates the active session objective. Use this if the user shifts their primary intent to ensure you stay focused on the new goal.',
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'new_objective' => ['type' => 'STRING']
+                    ],
+                    'required' => ['new_objective']
                 ]
             ]
         ];
