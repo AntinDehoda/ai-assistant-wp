@@ -40,6 +40,13 @@ class SessionManager
             )
         ";
         $this->db->exec($historyQuery);
+
+        // Safely add context_summary column if it doesn't exist
+        try {
+            $this->db->exec("ALTER TABLE user_sessions ADD COLUMN context_summary TEXT");
+        } catch (\PDOException $e) {
+            // Ignore error if column already exists
+        }
     }
 
     public function getObjective(string $chatId): ?string
@@ -76,6 +83,36 @@ class SessionManager
     {
         $stmt = $this->db->prepare("DELETE FROM user_sessions WHERE chat_id = :chat_id");
         $stmt->execute([':chat_id' => $chatId]);
+    }
+
+    public function getSummary(string $chatId): ?string
+    {
+        $stmt = $this->db->prepare("SELECT context_summary FROM user_sessions WHERE chat_id = :chat_id");
+        $stmt->execute([':chat_id' => $chatId]);
+        
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        return $result ? $result['context_summary'] : null;
+    }
+
+    public function updateSummary(string $chatId, string $summaryText): void
+    {
+        $now = (new \DateTime())->format('Y-m-d H:i:s');
+        
+        $query = "
+            INSERT INTO user_sessions (chat_id, context_summary, updated_at) 
+            VALUES (:chat_id, :summary, :updated_at)
+            ON CONFLICT(chat_id) DO UPDATE SET 
+                context_summary = excluded.context_summary,
+                updated_at = excluded.updated_at
+        ";
+        
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([
+            ':chat_id' => $chatId,
+            ':summary' => $summaryText,
+            ':updated_at' => $now
+        ]);
     }
 
     public function saveMessage(string $chatId, string $role, string $content): void

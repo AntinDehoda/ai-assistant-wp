@@ -53,14 +53,16 @@ class GeminiEngine
     private function chatLoop(array &$messages, ?string $chatId = null): string
     {
         $objective = null;
+        $summary = null;
         if ($chatId !== null) {
             $objective = $this->sessionManager->getObjective($chatId);
+            $summary = $this->sessionManager->getSummary($chatId);
         }
 
         $payload = [
             'systemInstruction' => [
                 'parts' => [
-                    ['text' => $this->getSystemInstruction($objective)]
+                    ['text' => $this->getSystemInstruction($objective, $summary)]
                 ]
             ],
             'contents' => $messages,
@@ -187,6 +189,15 @@ class GeminiEngine
                     $this->sessionManager->updateObjective($chatId, $newObjective);
                     $this->wikiManager->appendLog("[$chatId] Objective set to: $newObjective");
                     return "Session objective successfully updated.";
+                    
+                case 'finalize_subtask_and_summarize':
+                    if ($chatId === null) {
+                        return "Error: Cannot update summary because chat_id is unknown.";
+                    }
+                    $summaryText = $argsArray['summary'] ?? '';
+                    $this->sessionManager->updateSummary($chatId, $summaryText);
+                    $this->wikiManager->appendLog("[$chatId] Subtask Finalized. Summary: $summaryText");
+                    return "Subtask successfully summarized and saved to context memory.";
 
                 default:
                     return "Unknown function name: $name";
@@ -206,12 +217,16 @@ class GeminiEngine
         return $text;
     }
 
-    private function getSystemInstruction(?string $objective = null): string
+    private function getSystemInstruction(?string $objective = null, ?string $summary = null): string
     {
         $instruction = "";
         
         if ($objective) {
             $instruction .= "CURRENT_MISSION: " . $objective . "\n\n";
+        }
+        
+        if ($summary) {
+            $instruction .= "PROGRESS_SO_FAR:\n" . $summary . "\n\n";
         }
         
         $instruction .= <<<EOF
@@ -282,6 +297,17 @@ EOF;
                         'new_objective' => ['type' => 'STRING']
                     ],
                     'required' => ['new_objective']
+                ]
+            ],
+            [
+                'name' => 'finalize_subtask_and_summarize',
+                'description' => 'Generates a 2-sentence summary of "What was achieved" and "What is the immediate next step". Use this every 5 messages or when transitioning between different architectural topics.',
+                'parameters' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'summary' => ['type' => 'STRING']
+                    ],
+                    'required' => ['summary']
                 ]
             ]
         ];

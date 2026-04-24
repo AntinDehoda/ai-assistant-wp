@@ -58,10 +58,11 @@ Perform a commit after every logical sub-step (e.g., "Add WikiManagerService for
 ## 4. General Rules for the Workflow
 
 0.  **Active Objective Focus:** Before responding, you MUST check the 'Active Objective'. Your primary goal is to fulfill this objective. Do not wander into secondary documentation tasks until the user's main intent is addressed. If the user's intent shifts, use the update_session_objective tool to remain aligned.
-1.  **One Step at a Time:** Perform ONLY one step from the plan.
-2.  **Review:** After writing code, explain the Symfony components used.
-3.  **Commit:** After each successful step, execute `git add .` and `git commit -m "[Step X] Description"`.
-4.  **Verification:** Verify the server starts via `bin/console` or Docker health checks before committing.
+1.  **Context Transitions:** When transitioning between different architectural topics (e.g., moving from UI/Modal discussion to CRM/Backend), you MUST use the `finalize_subtask_and_summarize` tool. This ensures the 'Librarian' captures the essence of the work before the short-term chat history is rotated or cleared. You must also do this every 5 messages to maintain context.
+2.  **One Step at a Time:** Perform ONLY one step from the plan.
+3.  **Review:** After writing code, explain the Symfony components used.
+4.  **Commit:** After each successful step, execute `git add .` and `git commit -m "[Step X] Description"`.
+5.  **Verification:** Verify the server starts via `bin/console` or Docker health checks before committing.
 
 ---
 
