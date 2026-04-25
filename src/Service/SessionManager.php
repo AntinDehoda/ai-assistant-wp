@@ -9,10 +9,9 @@ class SessionManager
 {
     private PDO $db;
 
-    public function __construct(
-        #[Autowire('%kernel.project_dir%')] string $projectDir
-    ) {
-        $dbPath = $projectDir . '/knowledge/sessions.sqlite';
+    public function __construct() {
+        // /knowledge is mounted as a volume in Docker
+        $dbPath = '/knowledge/sessions.sqlite';
         $this->db = new PDO('sqlite:' . $dbPath);
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         
