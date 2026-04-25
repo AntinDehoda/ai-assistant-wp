@@ -32,6 +32,9 @@ printf "your-telegram-token" | gcloud secrets create TELEGRAM_TOKEN --data-file=
 
 # Add Gemini API Key
 printf "your-gemini-key" | gcloud secrets create GEMINI_API_KEY --data-file=-
+
+# Add Telegram Webhook Secret (Used to securely validate requests)
+printf "your-random-secret-string" | gcloud secrets create TELEGRAM_WEBHOOK_SECRET --data-file=-
 ```
 
 ### C. Grant Service Account Permissions

@@ -1,0 +1,15 @@
+.git
+.gitignore
+.env.local
+.env.*.local
+vendor/
+var/
+knowledge/
+tests/
+phpunit.xml.dist
+docker-compose.yml
+deploy.sh
+README.md
+README_GCP.md
+GEMINI.md
+ImplementationRoadmap.md

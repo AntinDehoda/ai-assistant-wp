@@ -21,6 +21,8 @@ COPY . /app
 
 # Install dependencies
 ENV COMPOSER_ALLOW_SUPERUSER=1
+ENV APP_ENV=prod
+ENV APP_DEBUG=0
 RUN composer install --no-dev --no-interaction --optimize-autoloader
 
 # Set permissions for Symfony cache/logs
