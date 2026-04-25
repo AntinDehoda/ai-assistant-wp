@@ -31,10 +31,8 @@ class WebhookController extends AbstractController
             // Process the message through the Knowledge Custodian AI
             $aiResponse = $geminiEngine->process($update->text, (string) $update->chatId);
             
-            // To prevent MarkdownV2 reserved characters from crashing the API
-            $safeText = $telegramService->escapeMarkdownV2($aiResponse);
-            
-            $telegramService->sendMessage($update->chatId, $safeText);
+            // Send raw text to Telegram
+            $telegramService->sendMessage($update->chatId, $aiResponse);
         }
 
         return new JsonResponse(['status' => 'ok']);

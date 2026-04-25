@@ -27,7 +27,6 @@ class TelegramService
                 'json' => [
                     'chat_id' => $chatId,
                     'text' => $text,
-                    'parse_mode' => 'MarkdownV2',
                 ]
             ]);
             
