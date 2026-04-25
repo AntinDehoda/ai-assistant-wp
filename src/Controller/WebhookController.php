@@ -17,6 +17,7 @@ class WebhookController extends AbstractController
         Request $request, 
         TelegramService $telegramService, 
         \App\Service\GeminiEngine $geminiEngine,
+        \App\Service\TelegramFormatter $formatter,
         #[Autowire(env: 'TELEGRAM_WEBHOOK_SECRET')] string $webhookSecret
     ): JsonResponse {
         $providedSecret = $request->headers->get('X-Telegram-Bot-Api-Secret-Token');
@@ -31,8 +32,12 @@ class WebhookController extends AbstractController
             // Process the message through the Knowledge Custodian AI
             $aiResponse = $geminiEngine->process($update->text, (string) $update->chatId);
             
-            // Send raw text to Telegram
-            $telegramService->sendMessage($update->chatId, $aiResponse);
+            // Because Telegram MarkdownV2 is strict, we escape the raw output
+            // Note: This escapes EVERYTHING, so Gemini's bold (**) becomes literal \*\*
+            $safeText = $formatter->escape($aiResponse);
+            
+            // Send the safely escaped text to Telegram
+            $telegramService->sendMessage($update->chatId, $safeText);
         }
 
         return new JsonResponse(['status' => 'ok']);
