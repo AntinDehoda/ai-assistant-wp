@@ -32,12 +32,11 @@ class WebhookController extends AbstractController
             // Process the message through the Knowledge Custodian AI
             $aiResponse = $geminiEngine->process($update->text, (string) $update->chatId);
             
-            // Because Telegram MarkdownV2 is strict, we escape the raw output
-            // Note: This escapes EVERYTHING, so Gemini's bold (**) becomes literal \*\*
-            $safeText = $formatter->escape($aiResponse);
+            // Format LLM output to Telegram HTML
+            $safeText = $formatter->markdownToHtml($aiResponse);
             
             // Send the safely escaped text to Telegram
-            $telegramService->sendMessage($update->chatId, $safeText);
+            $telegramService->sendMessage($update->chatId, $safeText, 'HTML');
         }
 
         return new JsonResponse(['status' => 'ok']);

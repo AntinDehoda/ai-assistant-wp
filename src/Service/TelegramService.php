@@ -20,14 +20,14 @@ class TelegramService
         $this->apiUrl = sprintf('https://api.telegram.org/bot%s/', $token);
     }
 
-    public function sendMessage(int $chatId, string $text): void
+    public function sendMessage(int $chatId, string $text, string $parseMode = 'MarkdownV2'): void
     {
         try {
             $response = $this->httpClient->request('POST', $this->apiUrl . 'sendMessage', [
                 'json' => [
                     'chat_id' => $chatId,
                     'text' => $text,
-                    'parse_mode' => 'MarkdownV2',
+                    'parse_mode' => $parseMode,
                 ]
             ]);
             
