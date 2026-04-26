@@ -103,7 +103,14 @@ class GeminiEngine
         $args = [];
         $callId = null;
 
-        foreach ($candidate['content']['parts'] as $part) {
+        $content = $candidate['content'] ?? [];
+        $parts = $content['parts'] ?? [];
+
+        if (empty($parts) && isset($candidate['finishReason']) && $candidate['finishReason'] !== 'STOP') {
+             return "Error: Gemini API stopped with reason: " . $candidate['finishReason'];
+        }
+
+        foreach ($parts as $part) {
             if (isset($part['text'])) {
                 $textOutput .= $part['text'] . "\n";
             }

@@ -76,7 +76,7 @@ readonly class TelegramFormatter
 
         // 1. Extract Code Blocks
         $markdown = preg_replace_callback('/```([\w\-]+)?\n*(.*?)\n*```/s', function ($matches) use (&$placeholders, &$counter) {
-            $id = "@@CODEBLOCK_{$counter}@@";
+            $id = "@@CODEBLOCK{$counter}@@";
             $lang = !empty($matches[1]) ? ' class="language-' . htmlspecialchars($matches[1], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"' : '';
             $code = htmlspecialchars($matches[2], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
             $placeholders[$id] = "<pre><code{$lang}>" . $code . "</code></pre>";
@@ -86,30 +86,38 @@ readonly class TelegramFormatter
 
         // 2. Extract Inline Code
         $markdown = preg_replace_callback('/`([^`]+)`/', function ($matches) use (&$placeholders, &$counter) {
-            $id = "@@INLINECODE_{$counter}@@";
+            $id = "@@INLINECODE{$counter}@@";
             $code = htmlspecialchars($matches[1], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
             $placeholders[$id] = "<code>" . $code . "</code>";
             $counter++;
             return $id;
         }, $markdown);
 
-        // 3. Escape HTML entities on the rest of the text
+        // 3. Protect URLs in Links
+        $markdown = preg_replace_callback('/\[(.*?)\]\((.*?)\)/s', function ($matches) use (&$placeholders, &$counter) {
+            $id = "@@URL{$counter}@@";
+            $url = htmlspecialchars($matches[2], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            $placeholders[$id] = $url;
+            return '[' . $matches[1] . '](' . $id . ')';
+        }, $markdown);
+
+        // 4. Escape HTML entities on the rest of the text
         $html = htmlspecialchars($markdown, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
-        // 4. Headers (# Header) -> Convert to bold
+        // 5. Headers (# Header) -> Convert to bold
         $html = preg_replace('/^#{1,6}\s+(.*?)$/m', '<b>$1</b>', $html);
 
-        // 5. Bold (**text**)
+        // 6. Bold (**text**)
         $html = preg_replace('/\*\*(?!\s)(.*?)(?<!\s)\*\*/s', '<b>$1</b>', $html);
 
-        // 6. Italic (*text* or _text_)
+        // 7. Italic (*text* or _text_)
         $html = preg_replace('/(?<!\*)\*(?!\s|\*)(.*?)(?<!\s|\*)\*(?!\*)/s', '<i>$1</i>', $html);
         $html = preg_replace('/(?<!_)_(?!\s|_)(.*?)(?<!\s|_)_(?!_)/s', '<i>$1</i>', $html);
 
-        // 7. Links ([text](url))
+        // 8. Links ([text](url))
         $html = preg_replace('/\[(.*?)\]\((.*?)\)/s', '<a href="$2">$1</a>', $html);
 
-        // 8. Restore Code Blocks and Inline Code
+        // 9. Restore Placeholders
         return strtr($html, $placeholders);
     }
 }
