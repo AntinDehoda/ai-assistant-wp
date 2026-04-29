@@ -1,5 +1,7 @@
+.gcloudignore
 .git
 .gitignore
+.dockerignore
 .env.local
 .env.*.local
 vendor/
