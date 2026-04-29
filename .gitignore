@@ -8,3 +8,10 @@
 /var/
 /vendor/
 ###< symfony/framework-bundle ###
+# Ignore real env files
+.env
+.env2
+.env*.local
+
+# But keep the example for documentation
+!.env.example

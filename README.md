@@ -59,3 +59,16 @@ When a user submits a query, the agent follows this cognitive workflow:
                     [Update wiki/*.md & log.md] ----> [Cloud Storage / GitHub]
                              |
 [Response to User] <---------+
+
+
+## 8. Local Development
+
+1. Copy the example env file and fill in your keys:
+   `bash
+   cp .env.example .env
+   `
+2. Start the container:
+   `bash
+   docker-compose up --build
+   `
+3. For production, use Google Cloud Secret Manager (see GEMINI.md)

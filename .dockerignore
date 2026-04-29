@@ -1,7 +1,6 @@
 .git
 .gitignore
-.env.local
-.env.*.local
+.env*
 vendor/
 var/
 knowledge/
