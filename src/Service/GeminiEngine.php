@@ -2,38 +2,29 @@
 
 namespace App\Service;
 
-use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 class GeminiEngine
 {
-    private HttpClientInterface $httpClient;
-    private WikiManager $wikiManager;
-    private SessionManager $sessionManager;
-    private string $apiKey;
-
     public function __construct(
-        HttpClientInterface $httpClient,
-        WikiManager $wikiManager,
-        SessionManager $sessionManager,
-        #[Autowire(env: 'GEMINI_API_KEY')] string $apiKey
+        private readonly HttpClientInterface $httpClient,
+        private readonly WikiManager $wikiManager,
+        private readonly SessionManager $sessionManager,
+        #[Autowire(env: 'GEMINI_API_KEY')] private readonly string $apiKey,
     ) {
-        $this->httpClient = $httpClient;
-        $this->wikiManager = $wikiManager;
-        $this->sessionManager = $sessionManager;
-        $this->apiKey = $apiKey;
     }
 
     public function process(string $userMessage, ?string $chatId = null): string
     {
         $messages = [];
-        
+
         if ($chatId !== null) {
             $history = $this->sessionManager->getRecentHistory($chatId, 10);
             foreach ($history as $msg) {
                 $messages[] = [
                     'role' => $msg['role'],
-                    'parts' => [['text' => $msg['content']]]
+                    'parts' => [['text' => $msg['content']]],
                 ];
             }
         }
@@ -42,7 +33,7 @@ class GeminiEngine
 
         $finalResponse = $this->chatLoop($messages, $chatId);
 
-        if ($chatId !== null && strpos($finalResponse, 'Error:') !== 0) {
+        if ($chatId !== null && !str_starts_with($finalResponse, 'Error:')) {
             $this->sessionManager->saveMessage($chatId, 'user', $userMessage);
             $this->sessionManager->saveMessage($chatId, 'model', $finalResponse);
         }
@@ -62,20 +53,20 @@ class GeminiEngine
         $payload = [
             'systemInstruction' => [
                 'parts' => [
-                    ['text' => $this->getSystemInstruction($objective, $summary)]
-                ]
+                    ['text' => $this->getSystemInstruction($objective, $summary)],
+                ],
             ],
             'contents' => $messages,
             'tools' => [
-                ['functionDeclarations' => $this->getFunctionDeclarations()]
-            ]
+                ['functionDeclarations' => $this->getFunctionDeclarations()],
+            ],
         ];
 
-        $response = $this->httpClient->request('POST', 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=' . $this->apiKey, [
+        $response = $this->httpClient->request('POST', 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key='.$this->apiKey, [
             'json' => $payload,
             'headers' => [
-                'Content-Type' => 'application/json'
-            ]
+                'Content-Type' => 'application/json',
+            ],
         ]);
 
         try {
@@ -83,18 +74,19 @@ class GeminiEngine
             $candidate = $data['candidates'][0] ?? null;
 
             if (!$candidate) {
-                return "Error: No response from Gemini.";
+                return 'Error: No response from Gemini.';
             }
         } catch (\Exception $e) {
             $errorBody = '';
             if (method_exists($e, 'getResponse')) {
                 try {
-                    $errorBody = " | Details: " . $e->getResponse()->getContent(false);
-                } catch (\Exception $e2) {
+                    $errorBody = ' | Details: '.$e->getResponse()->getContent(false);
+                } catch (\Exception) {
                     // Ignore
                 }
             }
-            return "Error from Gemini API: " . $this->maskSensitiveData($e->getMessage() . $errorBody);
+
+            return 'Error from Gemini API: '.$this->maskSensitiveData($e->getMessage().$errorBody);
         }
 
         $textOutput = '';
@@ -107,12 +99,12 @@ class GeminiEngine
         $parts = $content['parts'] ?? [];
 
         if (empty($parts) && isset($candidate['finishReason']) && $candidate['finishReason'] !== 'STOP') {
-             return "Error: Gemini API stopped with reason: " . $candidate['finishReason'];
+            return 'Error: Gemini API stopped with reason: '.$candidate['finishReason'];
         }
 
         foreach ($parts as $part) {
             if (isset($part['text'])) {
-                $textOutput .= $part['text'] . "\n";
+                $textOutput .= $part['text']."\n";
             }
             if (isset($part['functionCall'])) {
                 $functionCall = $part['functionCall'];
@@ -139,9 +131,9 @@ class GeminiEngine
             // Append function response
             $functionResponseData = [
                 'name' => $functionName,
-                'response' => ['result' => $result]
+                'response' => ['result' => $result],
             ];
-            
+
             if ($callId !== null) {
                 $functionResponseData['id'] = $callId;
             }
@@ -150,20 +142,20 @@ class GeminiEngine
                 'role' => 'user',
                 'parts' => [
                     [
-                        'functionResponse' => $functionResponseData
-                    ]
-                ]
+                        'functionResponse' => $functionResponseData,
+                    ],
+                ],
             ];
 
             // Recursive loop to process the tool result
-            return trim($textOutput . "\n" . $this->chatLoop($messages, $chatId));
+            return trim($textOutput."\n".$this->chatLoop($messages, $chatId));
         }
 
         if ($textOutput !== '') {
             return trim($textOutput);
         }
 
-        return "Error: Unhandled response format.";
+        return 'Error: Unhandled response format.';
     }
 
     private function executeFunction(string $name, array|object $args, ?string $chatId = null): mixed
@@ -172,45 +164,51 @@ class GeminiEngine
         try {
             switch ($name) {
                 case 'list_knowledge':
-                    $this->wikiManager->appendLog("Agent executed tool: list_knowledge");
+                    $this->wikiManager->appendLog('Agent executed tool: list_knowledge');
+
                     return $this->wikiManager->listKnowledge();
 
                 case 'read_page':
-                    $this->wikiManager->appendLog("Agent executed tool: read_page => " . $argsArray['filename']);
+                    $this->wikiManager->appendLog('Agent executed tool: read_page => '.$argsArray['filename']);
+
                     return $this->wikiManager->readPage($argsArray['filename']);
 
                 case 'write_page':
-                    $this->wikiManager->appendLog("Agent executed tool: write_page => " . $argsArray['filename']);
+                    $this->wikiManager->appendLog('Agent executed tool: write_page => '.$argsArray['filename']);
                     $this->wikiManager->writePage($argsArray['filename'], $argsArray['content']);
-                    return "Page successfully written.";
+
+                    return 'Page successfully written.';
 
                 case 'search_sources':
-                    $this->wikiManager->appendLog("Agent executed tool: search_sources => '" . $argsArray['query'] . "'");
+                    $this->wikiManager->appendLog("Agent executed tool: search_sources => '".$argsArray['query']."'");
+
                     return json_encode($this->wikiManager->searchSources($argsArray['query']));
-                    
+
                 case 'update_session_objective':
                     if ($chatId === null) {
-                        return "Error: Cannot update objective because chat_id is unknown.";
+                        return 'Error: Cannot update objective because chat_id is unknown.';
                     }
                     $newObjective = $argsArray['new_objective'] ?? '';
                     $this->sessionManager->updateObjective($chatId, $newObjective);
                     $this->wikiManager->appendLog("[$chatId] Objective set to: $newObjective");
-                    return "Session objective successfully updated.";
-                    
+
+                    return 'Session objective successfully updated.';
+
                 case 'finalize_subtask_and_summarize':
                     if ($chatId === null) {
-                        return "Error: Cannot update summary because chat_id is unknown.";
+                        return 'Error: Cannot update summary because chat_id is unknown.';
                     }
                     $summaryText = $argsArray['summary'] ?? '';
                     $this->sessionManager->updateSummary($chatId, $summaryText);
                     $this->wikiManager->appendLog("[$chatId] Subtask Finalized. Summary: $summaryText");
-                    return "Subtask successfully summarized and saved to context memory.";
+
+                    return 'Subtask successfully summarized and saved to context memory.';
 
                 default:
                     return "Unknown function name: $name";
             }
         } catch (\Exception $e) {
-            return "Function execution failed: " . $this->maskSensitiveData($e->getMessage());
+            return 'Function execution failed: '.$this->maskSensitiveData($e->getMessage());
         }
     }
 
@@ -218,24 +216,25 @@ class GeminiEngine
     {
         if (!empty($this->apiKey)) {
             // Replace the actual key with a masked version (e.g. AIza...[HIDDEN])
-            $masked = substr($this->apiKey, 0, 6) . '...[HIDDEN]';
+            $masked = mb_substr($this->apiKey, 0, 6).'...[HIDDEN]';
             $text = str_replace($this->apiKey, $masked, $text);
         }
+
         return $text;
     }
 
     private function getSystemInstruction(?string $objective = null, ?string $summary = null): string
     {
-        $instruction = "";
-        
+        $instruction = '';
+
         if ($objective) {
-            $instruction .= "CURRENT_MISSION: " . $objective . "\n\n";
+            $instruction .= 'CURRENT_MISSION: '.$objective."\n\n";
         }
-        
+
         if ($summary) {
-            $instruction .= "PROGRESS_SO_FAR:\n" . $summary . "\n\n";
+            $instruction .= "PROGRESS_SO_FAR:\n".$summary."\n\n";
         }
-        
+
         $instruction .= <<<EOF
 Role: Senior WP-AI Architect & Knowledge Custodian.
 Core Mission: Maintain a persistent LLM-Wiki about WordPress CRM integrations while assisting the user.
@@ -264,7 +263,7 @@ EOF;
         return [
             [
                 'name' => 'list_knowledge',
-                'description' => 'Scans the /wiki directory and returns the index.md content.'
+                'description' => 'Scans the /wiki directory and returns the index.md content.',
             ],
             [
                 'name' => 'read_page',
@@ -272,10 +271,10 @@ EOF;
                 'parameters' => [
                     'type' => 'OBJECT',
                     'properties' => [
-                        'filename' => ['type' => 'STRING']
+                        'filename' => ['type' => 'STRING'],
                     ],
-                    'required' => ['filename']
-                ]
+                    'required' => ['filename'],
+                ],
             ],
             [
                 'name' => 'write_page',
@@ -284,10 +283,10 @@ EOF;
                     'type' => 'OBJECT',
                     'properties' => [
                         'filename' => ['type' => 'STRING'],
-                        'content' => ['type' => 'STRING']
+                        'content' => ['type' => 'STRING'],
                     ],
-                    'required' => ['filename', 'content']
-                ]
+                    'required' => ['filename', 'content'],
+                ],
             ],
             [
                 'name' => 'search_sources',
@@ -295,10 +294,10 @@ EOF;
                 'parameters' => [
                     'type' => 'OBJECT',
                     'properties' => [
-                        'query' => ['type' => 'STRING']
+                        'query' => ['type' => 'STRING'],
                     ],
-                    'required' => ['query']
-                ]
+                    'required' => ['query'],
+                ],
             ],
             [
                 'name' => 'update_session_objective',
@@ -306,10 +305,10 @@ EOF;
                 'parameters' => [
                     'type' => 'OBJECT',
                     'properties' => [
-                        'new_objective' => ['type' => 'STRING']
+                        'new_objective' => ['type' => 'STRING'],
                     ],
-                    'required' => ['new_objective']
-                ]
+                    'required' => ['new_objective'],
+                ],
             ],
             [
                 'name' => 'finalize_subtask_and_summarize',
@@ -317,11 +316,11 @@ EOF;
                 'parameters' => [
                     'type' => 'OBJECT',
                     'properties' => [
-                        'summary' => ['type' => 'STRING']
+                        'summary' => ['type' => 'STRING'],
                     ],
-                    'required' => ['summary']
-                ]
-            ]
+                    'required' => ['summary'],
+                ],
+            ],
         ];
     }
 }
