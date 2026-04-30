@@ -2,144 +2,94 @@
 
 namespace App\Service;
 
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\Filesystem\Filesystem;
+
 class SessionManager
 {
-    private readonly \PDO $db;
-
-    public function __construct()
-    {
-        // /knowledge is mounted as a volume in Docker
-        $dbPath = '/knowledge/sessions.sqlite';
-        $this->db = new \PDO('sqlite:'.$dbPath);
-        $this->db->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
-
-        $this->initializeDatabase();
+    public function __construct(
+        private readonly Filesystem $filesystem,
+        #[Autowire('%kernel.project_dir%/knowledge')] private readonly string $knowledgeDir
+    ) {
     }
 
-    private function initializeDatabase(): void
+    private function getSessionDir(string $chatId): string
     {
-        $query = '
-            CREATE TABLE IF NOT EXISTS user_sessions (
-                chat_id TEXT PRIMARY KEY,
-                active_objective TEXT,
-                updated_at DATETIME
-            )
-        ';
-        $this->db->exec($query);
-
-        $historyQuery = '
-            CREATE TABLE IF NOT EXISTS chat_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                chat_id TEXT NOT NULL,
-                role TEXT NOT NULL,
-                content TEXT NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ';
-        $this->db->exec($historyQuery);
-
-        // Safely add context_summary column if it doesn't exist
-        try {
-            $this->db->exec('ALTER TABLE user_sessions ADD COLUMN context_summary TEXT');
-        } catch (\PDOException) {
-            // Ignore error if column already exists
+        $hashedId = hash('sha256', $chatId);
+        $sessionDir = $this->knowledgeDir . '/sessions/' . $hashedId;
+        
+        if (!$this->filesystem->exists($sessionDir)) {
+            $this->filesystem->mkdir($sessionDir, 0777);
         }
+        
+        return $sessionDir;
     }
 
     public function getObjective(string $chatId): ?string
     {
-        $stmt = $this->db->prepare('SELECT active_objective FROM user_sessions WHERE chat_id = :chat_id');
-        $stmt->execute([':chat_id' => $chatId]);
-
-        $result = $stmt->fetch(\PDO::FETCH_ASSOC);
-
-        return $result ? $result['active_objective'] : null;
+        $file = $this->getSessionDir($chatId) . '/objective.md';
+        if ($this->filesystem->exists($file)) {
+            return trim(file_get_contents($file));
+        }
+        return null;
     }
 
     public function updateObjective(string $chatId, string $objective): void
     {
-        $now = (new \DateTime())->format('Y-m-d H:i:s');
-
-        $query = '
-            INSERT INTO user_sessions (chat_id, active_objective, updated_at) 
-            VALUES (:chat_id, :objective, :updated_at)
-            ON CONFLICT(chat_id) DO UPDATE SET 
-                active_objective = excluded.active_objective,
-                updated_at = excluded.updated_at
-        ';
-
-        $stmt = $this->db->prepare($query);
-        $stmt->execute([
-            ':chat_id' => $chatId,
-            ':objective' => $objective,
-            ':updated_at' => $now,
-        ]);
+        $file = $this->getSessionDir($chatId) . '/objective.md';
+        $this->filesystem->dumpFile($file, $objective);
     }
 
     public function clearObjective(string $chatId): void
     {
-        $stmt = $this->db->prepare('DELETE FROM user_sessions WHERE chat_id = :chat_id');
-        $stmt->execute([':chat_id' => $chatId]);
+        $file = $this->getSessionDir($chatId) . '/objective.md';
+        if ($this->filesystem->exists($file)) {
+            $this->filesystem->remove($file);
+        }
     }
 
     public function getSummary(string $chatId): ?string
     {
-        $stmt = $this->db->prepare('SELECT context_summary FROM user_sessions WHERE chat_id = :chat_id');
-        $stmt->execute([':chat_id' => $chatId]);
-
-        $result = $stmt->fetch(\PDO::FETCH_ASSOC);
-
-        return $result ? $result['context_summary'] : null;
+        $file = $this->getSessionDir($chatId) . '/summary.md';
+        if ($this->filesystem->exists($file)) {
+            return trim(file_get_contents($file));
+        }
+        return null;
     }
 
     public function updateSummary(string $chatId, string $summaryText): void
     {
-        $now = (new \DateTime())->format('Y-m-d H:i:s');
-
-        $query = '
-            INSERT INTO user_sessions (chat_id, context_summary, updated_at) 
-            VALUES (:chat_id, :summary, :updated_at)
-            ON CONFLICT(chat_id) DO UPDATE SET 
-                context_summary = excluded.context_summary,
-                updated_at = excluded.updated_at
-        ';
-
-        $stmt = $this->db->prepare($query);
-        $stmt->execute([
-            ':chat_id' => $chatId,
-            ':summary' => $summaryText,
-            ':updated_at' => $now,
-        ]);
+        $file = $this->getSessionDir($chatId) . '/summary.md';
+        $this->filesystem->dumpFile($file, $summaryText);
     }
 
     public function saveMessage(string $chatId, string $role, string $content): void
     {
-        $stmt = $this->db->prepare('
-            INSERT INTO chat_history (chat_id, role, content)
-            VALUES (:chat_id, :role, :content)
-        ');
-        $stmt->execute([
-            ':chat_id' => $chatId,
-            ':role' => $role,
-            ':content' => $content,
-        ]);
+        $file = $this->getSessionDir($chatId) . '/history.md';
+        $formattedMessage = sprintf("### Role: %s\n%s\n---\n", $role, $content);
+        $this->filesystem->appendToFile($file, $formattedMessage);
     }
 
     public function getRecentHistory(string $chatId, int $limit = 10): array
     {
-        $stmt = $this->db->prepare('
-            SELECT role, content 
-            FROM chat_history 
-            WHERE chat_id = :chat_id 
-            ORDER BY id DESC 
-            LIMIT :limit
-        ');
-        $stmt->bindValue(':chat_id', $chatId, \PDO::PARAM_STR);
-        $stmt->bindValue(':limit', $limit, \PDO::PARAM_INT);
-        $stmt->execute();
+        $file = $this->getSessionDir($chatId) . '/history.md';
+        if (!$this->filesystem->exists($file)) {
+            return [];
+        }
 
-        $results = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        $content = file_get_contents($file);
+        $messages = [];
+        
+        if (preg_match_all('/### Role: (user|model)\s*\n(.*?)(?=(### Role: |\z))/is', $content, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $match) {
+                $msgContent = preg_replace('/---\s*$/', '', trim($match[2]));
+                $messages[] = [
+                    'role' => $match[1],
+                    'content' => trim($msgContent)
+                ];
+            }
+        }
 
-        return array_reverse($results);
+        return array_slice($messages, -$limit);
     }
 }

@@ -2,18 +2,16 @@
 
 namespace App\Service;
 
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Finder\Finder;
 
 class WikiManager
 {
-    private readonly string $knowledgeDir;
-
-    public function __construct(private readonly Filesystem $filesystem)
-    {
-        // /knowledge is mounted as a volume in Docker
-        $this->knowledgeDir = '/knowledge';
-
+    public function __construct(
+        private readonly Filesystem $filesystem,
+        #[Autowire('%kernel.project_dir%/knowledge')] private readonly string $knowledgeDir
+    ) {
         $this->ensureDirectoriesExist();
     }
 

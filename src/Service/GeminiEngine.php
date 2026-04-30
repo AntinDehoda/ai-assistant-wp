@@ -190,7 +190,8 @@ class GeminiEngine
                     }
                     $newObjective = $argsArray['new_objective'] ?? '';
                     $this->sessionManager->updateObjective($chatId, $newObjective);
-                    $this->wikiManager->appendLog("[$chatId] Objective set to: $newObjective");
+                    $hashedId = hash('sha256', $chatId);
+                    $this->wikiManager->appendLog("[$hashedId] Objective set to: $newObjective");
 
                     return 'Session objective successfully updated.';
 
@@ -200,7 +201,8 @@ class GeminiEngine
                     }
                     $summaryText = $argsArray['summary'] ?? '';
                     $this->sessionManager->updateSummary($chatId, $summaryText);
-                    $this->wikiManager->appendLog("[$chatId] Subtask Finalized. Summary: $summaryText");
+                    $hashedId = hash('sha256', $chatId);
+                    $this->wikiManager->appendLog("[$hashedId] Subtask Finalized. Summary: $summaryText");
 
                     return 'Subtask successfully summarized and saved to context memory.';
 
@@ -238,6 +240,7 @@ class GeminiEngine
         $instruction .= <<<EOF
 Role: Senior WP-AI Architect & Knowledge Custodian.
 Core Mission: Maintain a persistent LLM-Wiki about WordPress CRM integrations while assisting the user.
+Note: You are reading from and writing to your own Short-term Session Wiki (Markdown files) instead of a database.
 
 Tone & Behavior Guidelines:
 - DO NOT re-introduce yourself, repeat your role, or send a welcome message after executing a tool.
