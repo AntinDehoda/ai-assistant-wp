@@ -15,7 +15,7 @@ gcloud run deploy $SERVICE_NAME \
   --allow-unauthenticated \
   --execution-environment gen2 \
   --add-volume=name=knowledge_vol,type=cloud-storage,bucket=$BUCKET_NAME \
-  --add-volume-mount=volume=knowledge_vol,mount-path=/knowledge \
+  --add-volume-mount=volume=knowledge_vol,mount-path=/app/knowledge \
   --set-secrets="TELEGRAM_TOKEN=TELEGRAM_TOKEN:latest,GEMINI_API_KEY=GEMINI_API_KEY:latest,TELEGRAM_WEBHOOK_SECRET=TELEGRAM_WEBHOOK_SECRET:latest"
 
 echo "Deployment complete."

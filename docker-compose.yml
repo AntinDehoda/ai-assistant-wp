@@ -8,6 +8,5 @@ services:
       - "8080:8080"
     volumes:
       - .:/app
-      - ./knowledge:/knowledge
     env_file:
       - .env
